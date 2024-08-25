@@ -6,7 +6,7 @@ import UserModel from "../models/user.model";
 import VerificationCodeModel from "../models/verificationCode.model";
 import appAssert from "../utils/appAssert";
 import { fourWeeksFromNow, oneWeekFromNow } from "../utils/date";
-import jwt from "jsonwebtoken";
+import { refreshTokenSignOptions, signToken } from "../utils/jwt";
 
 export type CreateAccountParams = {
 	email: string;
@@ -25,9 +25,11 @@ export const createAccount = async (data: CreateAccountParams) => {
 		password: data.password,
 	});
 
+	const userId = user._id;
+
 	//create verification token
 	const verificationToken = await VerificationCodeModel.create({
-		userId: user._id,
+		userId,
 		type: VerificationCodeType.EmailVerification,
 		expiredAt: fourWeeksFromNow(), // 4 Week expiration
 	});
@@ -36,20 +38,14 @@ export const createAccount = async (data: CreateAccountParams) => {
 
 	//create session
 	const session = await SessionModel.create({
-		userId: user._id,
+		userId,
 		userAgent: data.userAgent,
 	});
 
 	//sign access token & refresh access token
-	const refreshToken = jwt.sign({ sessionId: session._id }, JWT_REFRESH_SECRET, {
-		audience: ["user"],
-		expiresIn: "7d", // 7 days expiration
-	});
+	const refreshToken = signToken({ sessionId: session._id }, refreshTokenSignOptions);
 
-	const accessToken = jwt.sign({ userId: user._id, sessionId: session._id }, JWT_SECRET, {
-		audience: ["user"],
-		expiresIn: "15m", // 15 minutes expiration
-	});
+	const accessToken = signToken({ userId, sessionId: session._id });
 
 	//return user & tokens
 	return {
@@ -80,22 +76,12 @@ export const loginUser = async ({ email, password, userAgent }: LoginUserParams)
 		userId,
 		userAgent,
 	});
-	const sessionInfo = {
-		sessionId: session._id,
-	};
 
 	//sign access token & refresh access token
-	const refreshToken = jwt.sign(sessionInfo, JWT_REFRESH_SECRET, {
-		audience: ["user"],
-		expiresIn: "7d", // 7 days expiration
-	});
+	const refreshToken = signToken({ sessionId: session._id }, refreshTokenSignOptions);
 
-	const accessToken = jwt.sign({ ...sessionInfo, userId: user._id }, JWT_SECRET, {
-		audience: ["user"],
-		expiresIn: "15m", // 15 minutes expiration
-	});
+	const accessToken = signToken({ sessionId: session._id, userId });
 
-	// const accessToken = jwt.sign({ userId: user._id, sessionId: session._id }, JWT_SECRET,
 	return {
 		user: user.omitPassword(),
 		accessToken,
