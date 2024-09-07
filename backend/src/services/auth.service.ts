@@ -1,4 +1,4 @@
-import { JWT_REFRESH_SECRET, JWT_SECRET } from "../constants/env";
+import { APP_ORIGIN, JWT_REFRESH_SECRET, JWT_SECRET } from "../constants/env";
 import { CONFLICT, UNAUTHORIZED } from "../constants/httpStatusCode";
 import VerificationCodeType from "../constants/verificationCodeType";
 import SessionModel from "../models/session.model";
@@ -6,7 +6,9 @@ import UserModel from "../models/user.model";
 import VerificationCodeModel from "../models/verificationCode.model";
 import appAssert from "../utils/appAssert";
 import { fourWeeksFromNow, oneDayInMS } from "../utils/date";
+import { getVerifyEmailTemplate } from "../utils/emailTemplates";
 import { RefreshTokenPayload, refreshTokenSignOptions, signToken, verifyToken } from "../utils/jwt";
+import { sendEmail } from "../utils/sendEmail";
 
 export type CreateAccountParams = {
 	email: string;
@@ -35,6 +37,14 @@ export const createAccount = async (data: CreateAccountParams) => {
 	});
 
 	//send verification email
+	const url = `${APP_ORIGIN}/email/verify/${verificationToken._id}`;
+	const { error } = await sendEmail({
+		to: user.email,
+		...getVerifyEmailTemplate(url),
+	});
+	if (error) {
+		console.log(error);
+	}
 
 	//create session
 	const session = await SessionModel.create({
@@ -108,9 +118,31 @@ export const refreshUserAccessToken = async (refreshToken: string) => {
 	}
 
 	const newRefreshToken = sessionNeedsRefresh ? signToken({ sessionId: session._id }, refreshTokenSignOptions) : undefined;
-	const accessToken = signToken({ sessionId: session._id,userId: session.userId});
+	const accessToken = signToken({ sessionId: session._id, userId: session.userId });
 	return {
-        accessToken,
-        newRefreshToken,
-    };
+		accessToken,
+		newRefreshToken,
+	};
+};
+
+export const verifyEmail = async (code: string) => {
+	// get the verification code
+	const vaildCode = await VerificationCodeModel.findOne({
+		_id: code,
+		type: VerificationCodeType.EmailVerification,
+		expiredAt: { $gt: new Date() },
+	});
+	appAssert(vaildCode, UNAUTHORIZED, "Invalid verification code");
+
+	// get user by id and update user to verified true
+	const updatedUser = await UserModel.findByIdAndUpdate(vaildCode.userId, { verified: true }, { new: true });
+	appAssert(updatedUser, UNAUTHORIZED, "Failed to verify email");
+
+	// delete verification code
+	await vaildCode.deleteOne();
+
+	// return user
+	return {
+		user: updatedUser.omitPassword(),
+	};
 };
