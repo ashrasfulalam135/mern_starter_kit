@@ -1,10 +1,11 @@
 import catchErrors from "../utils/catchErrors";
-import { createAccount, loginUser } from "../services/auth.service";
-import { CREATED, OK } from "../constants/httpStatusCode";
-import { clearAuthCookies, setAuthCookie } from "../utils/cookies";
+import { createAccount, loginUser, refreshUserAccessToken } from "../services/auth.service";
+import { CREATED, OK, UNAUTHORIZED } from "../constants/httpStatusCode";
+import { clearAuthCookies, getAccessTokenCookieOptions, getRefreshTokenCookieOptions, setAuthCookie } from "../utils/cookies";
 import { registerSchema, loginSchema } from "../schemas/auth.schemas";
 import { verifyToken } from "../utils/jwt";
 import SessionModel from "../models/session.model";
+import appAssert from "../utils/appAssert";
 
 export const registerHandler = catchErrors(async (req, res) => {
 	//Validation request
@@ -35,9 +36,9 @@ export const loginHandler = catchErrors(async (req, res) => {
 });
 
 export const logoutHandler = catchErrors(async (req, res) => {
-	const accessToken = req.cookies.accessToken;
+	const accessToken = req.cookies.accessToken as string | undefined;
 	//varify the access token and remove session
-	const { payload } = verifyToken(accessToken);
+	const { payload } = verifyToken(accessToken || "");
 	if (payload) {
 		//remove session from database
 		await SessionModel.findByIdAndDelete(payload.sessionId);
@@ -49,5 +50,19 @@ export const logoutHandler = catchErrors(async (req, res) => {
 });
 
 export const refreshHandler = catchErrors(async (req, res) => {
-	
+	const refreshToken = req.cookies.refreshToken as string | undefined;
+	appAssert(refreshToken, UNAUTHORIZED, "Missing refresh token");
+
+	//call a service
+	const { accessToken, newRefreshToken } = await refreshUserAccessToken(refreshToken);
+
+	// refresh
+	if (newRefreshToken) {
+		res.cookie("refreshToken", newRefreshToken, getRefreshTokenCookieOptions());
+	}
+
+	//return response
+	return res.status(OK).cookie("accessToken", accessToken, getAccessTokenCookieOptions()).json({
+		message: "Refreshed access token successfully",
+	});
 });

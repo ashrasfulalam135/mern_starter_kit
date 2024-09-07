@@ -10,14 +10,14 @@ const defaults: CookieOptions = {
 	sameSite: "strict",
 };
 
-const getAccessTokenCookieOptions = (): CookieOptions => {
+export const getAccessTokenCookieOptions = (): CookieOptions => {
 	return {
 		...defaults,
 		expires: fifteenMinutesFromNow(), // 15 minutes expiration
 	};
 };
 
-const getRefreshTokenCookieOptions = (): CookieOptions => ({
+export const getRefreshTokenCookieOptions = (): CookieOptions => ({
 	...defaults,
 	expires: oneWeekFromNow(), // 7 days expiration
 	path: REFRESH_PATH, // only send refresh token to this route
