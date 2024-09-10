@@ -5,6 +5,7 @@ import SessionModel from "../models/session.model";
 import UserModel from "../models/user.model";
 import VerificationCodeModel from "../models/verificationCode.model";
 import appAssert from "../utils/appAssert";
+import { hashValue } from "../utils/bcrypt";
 import { fourWeeksFromNow, oneDayInMS, fiveMinutesAgo, oneHourFromNow } from "../utils/date";
 import { getPasswordResetTemplate, getVerifyEmailTemplate } from "../utils/emailTemplates";
 import { RefreshTokenPayload, refreshTokenSignOptions, signToken, verifyToken } from "../utils/jwt";
@@ -179,5 +180,35 @@ export const sendPasswordResetEmail = async (email: string) => {
 	return {
 		url,
 		emailId: data.accepted[0],
+	};
+};
+
+type ResetPasswordParams = {
+	password: string;
+	verificationCode: string;
+};
+
+export const resetPassword = async ({ password, verificationCode }: ResetPasswordParams) => {
+	// verify verification code
+	const vaildCode = await VerificationCodeModel.findOne({
+		_id: verificationCode,
+		type: VerificationCodeType.PasswordReset,
+		expiredAt: { $gt: new Date() },
+	});
+	appAssert(vaildCode, UNAUTHORIZED, "Invalid or expired verification code");
+
+	// get user by id and update password
+	const updatedUser = await UserModel.findByIdAndUpdate(vaildCode.userId, { password: await hashValue(password) }, { new: true });
+	appAssert(updatedUser, UNAUTHORIZED, "Failed to reset password");
+
+	// delete verification code
+	await vaildCode.deleteOne();
+
+	// delete session
+	await SessionModel.deleteMany({ userId: updatedUser._id });
+
+	// return user
+	return {
+		user: updatedUser.omitPassword(),
 	};
 };
