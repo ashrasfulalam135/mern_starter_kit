@@ -17,3 +17,12 @@ export const EMAIL_SENDER = getEnv("EMAIL_SENDER");
 export const RESEND_API_KEY = getEnv("RESEND_API_KEY");
 export const MAILTRAP_API_KEY = getEnv("MAILTRAP_API_KEY");
 export const APP_ORIGIN = getEnv("APP_ORIGIN");
+
+export const MAIL_MAILER = getEnv("MAIL_MAILER");
+export const MAIL_HOST = getEnv("MAIL_HOST");
+export const MAIL_PORT = getEnv("MAIL_PORT");
+export const MAIL_USERNAME = getEnv("MAIL_USERNAME");
+export const MAIL_PASSWORD = getEnv("MAIL_PASSWORD");
+export const MAIL_ENCRYPTION = getEnv("MAIL_ENCRYPTION");
+export const MAIL_FROM_ADDRESS = getEnv("MAIL_FROM_ADDRESS");
+export const MAIL_FROM_NAME = getEnv("MAIL_FROM_NAME");

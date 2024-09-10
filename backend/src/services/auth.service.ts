@@ -1,12 +1,12 @@
 import { APP_ORIGIN, JWT_REFRESH_SECRET, JWT_SECRET } from "../constants/env";
-import { CONFLICT, UNAUTHORIZED } from "../constants/httpStatusCode";
+import { CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND, TOO_MANY_REQUEST, UNAUTHORIZED } from "../constants/httpStatusCode";
 import VerificationCodeType from "../constants/verificationCodeType";
 import SessionModel from "../models/session.model";
 import UserModel from "../models/user.model";
 import VerificationCodeModel from "../models/verificationCode.model";
 import appAssert from "../utils/appAssert";
-import { fourWeeksFromNow, oneDayInMS } from "../utils/date";
-import { getVerifyEmailTemplate } from "../utils/emailTemplates";
+import { fourWeeksFromNow, oneDayInMS, fiveMinutesAgo, oneHourFromNow } from "../utils/date";
+import { getPasswordResetTemplate, getVerifyEmailTemplate } from "../utils/emailTemplates";
 import { RefreshTokenPayload, refreshTokenSignOptions, signToken, verifyToken } from "../utils/jwt";
 import { sendEmail } from "../utils/sendEmail";
 
@@ -38,13 +38,11 @@ export const createAccount = async (data: CreateAccountParams) => {
 
 	//send verification email
 	const url = `${APP_ORIGIN}/email/verify/${verificationToken._id}`;
-	const { error } = await sendEmail({
+	const res = await sendEmail({
 		to: user.email,
 		...getVerifyEmailTemplate(url),
 	});
-	if (error) {
-		console.log(error);
-	}
+	appAssert(res?.messageId, INTERNAL_SERVER_ERROR, "There is an internal server issue, please try again later");
 
 	//create session
 	const session = await SessionModel.create({
@@ -144,5 +142,42 @@ export const verifyEmail = async (code: string) => {
 	// return user
 	return {
 		user: updatedUser.omitPassword(),
+	};
+};
+
+export const sendPasswordResetEmail = async (email: string) => {
+	// verify user by email
+	const user = await UserModel.findOne({ email });
+	appAssert(user, NOT_FOUND, "User not found");
+
+	// check email rate limit
+	const fiveMinAgo = fiveMinutesAgo();
+	const count = await VerificationCodeModel.countDocuments({
+		userId: user._id,
+		type: VerificationCodeType.PasswordReset,
+		createdAt: { $gte: fiveMinAgo },
+	});
+	appAssert(count <= 1, TOO_MANY_REQUEST, "Too many password reset requests. Please try again later");
+
+	// create verification Code
+	const expiredAt = oneHourFromNow();
+	const verificationCode = await VerificationCodeModel.create({
+		userId: user._id,
+		type: VerificationCodeType.PasswordReset,
+		expiredAt, // 1 hour expiration
+	});
+
+	//send password reset email
+	const url = `${APP_ORIGIN}/password/reset?code=${verificationCode._id}&exp=${expiredAt.getTime()}`;
+	const data = await sendEmail({
+		to: user.email,
+		...getPasswordResetTemplate(url),
+	});
+	appAssert(data?.messageId, INTERNAL_SERVER_ERROR, "There is an internal server issue, please try again later");
+
+	// return response
+	return {
+		url,
+		emailId: data.accepted[0],
 	};
 };

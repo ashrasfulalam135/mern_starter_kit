@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const passwordValidation = new RegExp(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{1,}$/);
-const emailSchema = z.string().email().min(1).max(255);
+export const emailSchema = z.string().email().min(1).max(255);
 const passwordSchema = z.string().min(8).max(16).regex(passwordValidation, {
 	message: "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
 });
