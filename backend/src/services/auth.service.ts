@@ -185,20 +185,24 @@ export const sendPasswordResetEmail = async (email: string) => {
 
 type ResetPasswordParams = {
 	password: string;
+	confirmPassword: string;
 	verificationCode: string;
 };
 
-export const resetPassword = async ({ password, verificationCode }: ResetPasswordParams) => {
+export const resetPassword = async (data: ResetPasswordParams) => {
 	// verify verification code
 	const vaildCode = await VerificationCodeModel.findOne({
-		_id: verificationCode,
+		_id: data.verificationCode,
 		type: VerificationCodeType.PasswordReset,
 		expiredAt: { $gt: new Date() },
 	});
 	appAssert(vaildCode, UNAUTHORIZED, "Invalid or expired verification code");
 
+	// compare the password
+	appAssert(data.password === data.confirmPassword, UNAUTHORIZED, "Password and confirm Password not matched");
+
 	// get user by id and update password
-	const updatedUser = await UserModel.findByIdAndUpdate(vaildCode.userId, { password: await hashValue(password) }, { new: true });
+	const updatedUser = await UserModel.findByIdAndUpdate(vaildCode.userId, { password: await hashValue(data.password) }, { new: true });
 	appAssert(updatedUser, UNAUTHORIZED, "Failed to reset password");
 
 	// delete verification code
