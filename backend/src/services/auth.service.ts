@@ -199,7 +199,7 @@ export const resetPassword = async (data: ResetPasswordParams) => {
 	appAssert(vaildCode, UNAUTHORIZED, "Invalid or expired verification code");
 
 	// compare the password
-	appAssert(data.password === data.confirmPassword, UNAUTHORIZED, "Password and confirm Password not matched");
+	// appAssert(data.password === data.confirmPassword, UNAUTHORIZED, "Password and confirm Password not matched");
 
 	// get user by id and update password
 	const updatedUser = await UserModel.findByIdAndUpdate(vaildCode.userId, { password: await hashValue(data.password) }, { new: true });
