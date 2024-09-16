@@ -91,7 +91,10 @@ export const sendPasswordResetHandler = catchErrors(async (req, res) => {
 
 export const resetPasswordHandler = catchErrors(async (req, res) => {
 	// validation request
-	const request = resetPasswordSchema.parse(req.body);
+	const request = resetPasswordSchema.parse({
+		...req.body,
+		userAgent: req.headers["user-agent"],
+	});
 
 	// call a service
 	await resetPassword(request);
